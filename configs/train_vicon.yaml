@@ -10,6 +10,7 @@
 # specify here default configuration
 # order of defaults determines the order in which configs override each other
 defaults:
+  # - data/weno/weno@data # load from data/dummy/dummy_ol.yaml as data
   - data/dummy_vicon/dummy_vicon@data # load from data/dummy/dummy_ol.yaml as data
   - model: vicon
   - plmodule: vicon

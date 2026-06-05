@@ -1,0 +1,13 @@
+name: pdearena_incomp_train
+weight: 1.0
+dataset:
+  _target_: src.datasets.pdearena.pdearena_incomp_split.PDEArenaIncompSplitDataset
+  file_paths: ${data.files}
+  ex_num: ${data.ex_num}
+  split: train
+
+num_workers: ${data.num_workers}
+pin_memory: ${data.pin_memory}
+batch_size_per_device: ${data.batch_size_per_device}
+enable_device_seed: ${data.train_enable_device_seed}
+base_seed: ${data.train_base_seed}

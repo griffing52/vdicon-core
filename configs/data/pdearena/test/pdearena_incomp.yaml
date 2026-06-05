@@ -1,0 +1,12 @@
+name: pdearena_incomp_test
+dataset:
+  _target_: src.datasets.pdearena.pdearena_incomp_split.PDEArenaIncompSplitDataset
+  file_paths: ${data.files}
+  ex_num: ${data.ex_num}
+  split: test
+
+num_workers: ${data.num_workers}
+pin_memory: ${data.pin_memory}
+batch_size_per_device: ${data.batch_size_per_device}
+enable_device_seed: ${data.test_enable_device_seed}
+base_seed: ${data.test_base_seed}

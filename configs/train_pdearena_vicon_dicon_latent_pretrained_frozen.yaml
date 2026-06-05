@@ -1,0 +1,39 @@
+# @package _global_
+
+defaults:
+  - data/pdearena/pdearena@data
+  - model: vicon_dicon_latent_pretrained
+  - plmodule: vicon_dicon_latent
+  - datamodule: base
+  - loss: none
+  - opt: default
+  - accelerate: default
+  - callbacks: many_callbacks
+  - logger: many_loggers
+  - trainer: ddp
+  - paths: default
+  - extras: default
+  - hydra: default
+  - _self_
+  - experiment: null
+  - hparams_search: null
+  - optional local: default
+  - debug: null
+
+task_name: "train"
+tags: ["pdearena", "pretrained_vicon", "latent_flow_matching", "frozen_backbone"]
+train: True
+test: false
+seed: 42
+print_lv: 1
+log_project: "pdearena"
+
+plmodule:
+  loss_icon_weight: 0.0
+  loss_fm_weight: 1.0
+  eval_flow_steps: 32
+  eval_num_samples: 1
+
+trainer:
+  max_steps: 100000
+  val_check_interval: 10000

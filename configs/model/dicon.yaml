@@ -1,0 +1,38 @@
+_target_: src.models.icon.dicon.DICON
+
+backbone:
+  _target_: src.models.icon.icon.ICON
+
+  shot_num_min: 1
+  data_mask: false
+
+  pre_projection:
+    _target_: torch.nn.Linear
+    in_features: 2
+    out_features: ${model.backbone.transformer.layer.d_model}
+
+  function_pe:
+    _target_: torch.nn.Embedding
+    num_embeddings: 100
+    embedding_dim: ${model.backbone.transformer.layer.d_model}
+
+  transformer:
+    _target_: src.models.base.transformer.TransformerEncoder
+    layer:
+      _target_: src.models.base.transformer.TransformerEncoderLayer
+      d_model: 256
+      nhead: 8
+      dim_feedforward: 1024
+      dropout: 0.0
+    num_layers: 6
+
+  post_projection:
+    _target_: torch.nn.Linear
+    in_features: ${model.backbone.transformer.layer.d_model}
+    out_features: 1
+
+flow_expert:
+  _target_: src.models.icon.dicon.FlowMatchingExpert
+  state_dim: ${model.backbone.post_projection.out_features}
+  hidden_dim: 256
+  num_layers: 4

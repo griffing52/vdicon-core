@@ -1,0 +1,35 @@
+_target_: src.models.vicon.ltx_vicon.LTXViconVideoModel
+
+# Diffusers LTX transformer. The public docs expose LTXVideoTransformer3DModel;
+# this repo id contains the LTXV 2B 0.9.x family, including the 0.9.6 distilled variant.
+pretrained_model_name_or_path: Lightricks/LTX-Video
+subfolder: transformer
+use_pretrained: true
+torch_dtype: bfloat16
+
+# Used only when use_pretrained=false for small local ablations.
+transformer_kwargs:
+  in_channels: ${model.token_channels}
+  out_channels: ${model.token_channels}
+  patch_size: 1
+  patch_size_t: 1
+  num_attention_heads: 8
+  attention_head_dim: 64
+  cross_attention_dim: 512
+  num_layers: 4
+  caption_channels: 1024
+
+input_channels: 2
+output_channels: 2
+token_channels: 128
+patch_size: 32
+output_frames: 1
+context_tokens: 128
+timestep: 0
+
+# Practical overnight default: keep most of the 2B video transformer frozen and train
+# the VICON adapters plus the final transformer blocks. Set freeze_transformer=false
+# if you really want full fine-tuning and have the memory for it.
+freeze_transformer: true
+train_last_n_layers: 4
+gradient_checkpointing: true

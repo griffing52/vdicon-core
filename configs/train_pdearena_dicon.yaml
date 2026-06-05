@@ -1,0 +1,29 @@
+# @package _global_
+
+defaults:
+  - data/pdearena/pdearena@data
+  - model: vicon_dicon
+  - plmodule: vicon_dicon
+  - datamodule: base
+  - loss: none
+  - opt: default
+  - accelerate: default
+  - callbacks: many_callbacks
+  - logger: many_loggers
+  - trainer: ddp
+  - paths: default
+  - extras: default
+  - hydra: default
+  - _self_
+  - experiment: null
+  - hparams_search: null
+  - optional local: default
+  - debug: null
+
+task_name: "train"
+tags: ["pdearena", "dicon", "flow_matching"]
+train: True
+test: false
+seed: 42
+print_lv: 1
+log_project: "pdearena"

@@ -1,0 +1,7 @@
+_target_: src.plmodules.vicon_latent_dicon_lit_module.ViconLatentDiconLitModule
+_partial_: true
+
+loss_icon_weight: 1.0
+loss_fm_weight: 1.0
+eval_flow_steps: 16
+eval_num_samples: 1

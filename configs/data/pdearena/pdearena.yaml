@@ -1,0 +1,14 @@
+defaults:
+  - ../dataloader@_here_
+  - train/pdearena_incomp@train.pdearena_incomp
+  - valid/pdearena_incomp@valid.pdearena_incomp
+  - test/pdearena_incomp@test.pdearena_incomp
+  - _self_
+
+data_folder: ${paths.data_dir}/pdearena_incomp
+files: ${data.data_folder}/ns_incom_inhom_2d_512-*.h5
+batch_size_per_device: 1
+ex_num: 5
+input_time_offset: 0
+target_time_offset: 1
+time_stride: 1

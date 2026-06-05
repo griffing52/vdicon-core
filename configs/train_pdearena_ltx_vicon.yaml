@@ -1,0 +1,40 @@
+# @package _global_
+
+defaults:
+  - data/pdearena/pdearena@data
+  - model: ltx_vicon
+  - plmodule: ltx_vicon
+  - datamodule: base
+  - loss: none
+  - opt: default
+  - accelerate: default
+  - callbacks: many_callbacks
+  - logger: many_loggers
+  - trainer: ddp
+  - paths: default
+  - extras: default
+  - hydra: default
+  - _self_
+  - experiment: null
+  - hparams_search: null
+  - optional local: default
+  - debug: null
+
+task_name: "train"
+tags: ["pdearena", "ltx_video", "vicon_style", "next_frame"]
+train: True
+test: false
+seed: 42
+print_lv: 1
+log_project: "pdearena"
+
+accelerate:
+  precision: bf16-mixed
+
+opt:
+  optimizer:
+    lr: 2e-5
+
+trainer:
+  max_steps: 100000
+  val_check_interval: 5000

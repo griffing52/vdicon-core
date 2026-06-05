@@ -1,0 +1,64 @@
+#######################################################
+# This file belongs to the core repository.
+# If your project repository is a fork of core,
+# you are suggested to keep this file untouched in your project.
+# This helps avoid merge conflicts when syncing from core.
+#######################################################
+
+# @package _global_
+
+defaults:
+  - data/weno/weno@data
+  - model: dicon
+  - plmodule: dicon
+  - datamodule: base
+  - loss: icon
+  - opt: default
+  - accelerate: default
+  - callbacks: none
+  - logger: none
+  - trainer: cpu
+  - paths: default
+  - extras: default
+  - hydra: default
+  - _self_
+
+  - experiment: null
+  - hparams_search: null
+  - optional local: default
+  - debug: null
+
+task_name: "train"
+tags: ["dicon", "smoke", "cpu"]
+train: True
+test: false
+seed: 42
+print_lv: 1
+log_project: "dicon"
+
+model:
+  backbone:
+    transformer:
+      layer:
+        d_model: 128
+        dim_feedforward: 256
+        nhead: 4
+      num_layers: 2
+  flow_expert:
+    hidden_dim: 128
+    num_layers: 3
+
+plmodule:
+  eval_flow_steps: 8
+  eval_num_samples: 1
+
+trainer:
+  max_steps: 5
+  val_check_interval: 5
+  limit_train_batches: 2
+  limit_val_batches: 2
+
+opt:
+  optimizer:
+    lr: 1e-4
+

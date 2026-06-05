@@ -1,0 +1,8 @@
+_target_: src.plmodules.dicon_lit_module.DiconLitModule
+_partial_: true
+
+loss_icon_weight: 1.0
+loss_fm_weight: 1.0
+detach_cond_for_fm: true
+eval_flow_steps: 16
+eval_num_samples: 1

@@ -68,7 +68,7 @@ class BaseLitModule(L.LightningModule, ABC):
         elif self.cfg.opt.optimizer._target_ == "src.opt.optimizers.muon.Muon":
             from src.opt.optimizers.muon import Muon
 
-            named_params = [(name, p) for net in nets for (name, p) in net.named_parameters()]
+            named_params = [(name, p) for net in nets for (name, p) in net.named_parameters() if p.requires_grad]
             muon_params, adamw_params = Muon.split_muon_adamw_params(named_params)
 
             optimizer = hydra.utils.instantiate(self.cfg.opt.optimizer)(

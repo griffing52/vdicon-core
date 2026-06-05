@@ -1,5 +1,5 @@
 #!/bin/sh
-uv sync --extra cu126
+uv sync --extra cu128
 uv tree
 
 # Here we set a small max_steps, val_check_interval, and limit_val_batches for fast testing. For full training, you can remove these arguments.

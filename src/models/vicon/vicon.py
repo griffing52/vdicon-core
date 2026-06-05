@@ -59,6 +59,36 @@ class Vicon(nn.Module):
         ).bool()
         self.register_buffer("mask", mask)
 
+    def encode_hidden(self, f, g):
+        """Return the qn hidden map before the final output projection."""
+        p = self.patch_num_in
+        d = self.dim_token
+
+        x = torch.cat((f[:, :, None, :, :], g[:, :, None, :, :]), dim=2)
+        bs, pairs, _, c, h, w = x.shape
+
+        feature = x.view(-1, *x.shape[-3:])
+        c, ph, pw = feature.shape[-3:]
+        h = ph // p
+        w = pw // p
+        feature = patchify(feature, patch_num=p)
+
+        feature = self.pre_proj(feature)
+        feature = feature + self.patch_pos_encoding
+        feature = feature.view(bs, -1, p * p, d)
+
+        func_pos_encoding = self.func_pos_encoding.view(1, -1, 1, d)
+        func_pos_encoding = func_pos_encoding[:, : pairs * 2, :, :]
+        feature = feature + func_pos_encoding
+        feature = feature.view(bs, -1, d)
+
+        mask = self.mask[: pairs * 2 * p * p, : pairs * 2 * p * p]
+        feature = self.transformer(feature, mask=mask)
+        feature = feature.view(bs, pairs, 2, p * p, d)
+        feature = feature[:, -1:, 0, :, :]
+        feature = feature.view(bs, 1, p, p, d).permute(0, 1, 4, 2, 3).contiguous()
+        return feature
+
     def forward(self, f, g):
         p = self.patch_num_in
         d = self.dim_token
