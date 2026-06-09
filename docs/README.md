@@ -1,7 +1,8 @@
 <div align="center">
 
 
-Modified version of scaling-group/icon-core repo with some flow matching and video generation model experiments
+# Modified version of scaling-group/icon-core repo with some flow matching and video generation model experiments
+## This is for graduate class Math 270A: AI + PDEs at UCLA 
 # ICON-CORE
 
 [![python](https://img.shields.io/badge/-Python_3.11-blue?logo=python&logoColor=white)](https://github.com/pre-commit/pre-commit)
