@@ -4,6 +4,9 @@ dataset:
   file_paths: ${data.files}
   ex_num: ${data.ex_num}
   split: test
+  input_time_offset: ${data.input_time_offset}
+  target_time_offset: ${data.target_time_offset}
+  time_stride: ${data.time_stride}
 
 num_workers: ${data.num_workers}
 pin_memory: ${data.pin_memory}
