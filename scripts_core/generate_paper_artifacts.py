@@ -190,6 +190,63 @@ def order_rollout_rows_by_mae(rollout_rows: list[tuple[str, list[torch.Tensor]]]
     return [gt] + model_rows
 
 
+def _gallery_feature(dataset: PDEArenaIncompSplitDataset, sample_idx: int, rollout_steps: int) -> torch.Tensor:
+    qn_traj_idx, start_time = dataset._samples[sample_idx]
+    ref = dataset._split_refs[qn_traj_idx]
+    max_steps = (dataset._time_steps - 1 - start_time) // dataset.target_time_offset
+    if max_steps < rollout_steps:
+        raise ValueError("sample does not support requested rollout length")
+    features = []
+    for step in range(1, rollout_steps + 1):
+        time_idx = start_time + step * dataset.target_time_offset
+        frame = dataset._read_velocity_frame(ref, time_idx)
+        speed = field_maps(frame)[0].unsqueeze(0).unsqueeze(0)
+        pooled = torch.nn.functional.avg_pool2d(speed, kernel_size=16, stride=16).flatten()
+        features.append(pooled)
+    return torch.cat(features).float()
+
+
+def select_diverse_gallery_indices(dataset: PDEArenaIncompSplitDataset, count: int, rollout_steps: int) -> list[int]:
+    if len(dataset) <= count:
+        return list(range(len(dataset)))
+    candidate_count = min(240, len(dataset))
+    if candidate_count == len(dataset):
+        candidate_indices = list(range(len(dataset)))
+    else:
+        candidate_indices = sorted({round(i * (len(dataset) - 1) / (candidate_count - 1)) for i in range(candidate_count)})
+
+    feature_pairs = []
+    for idx in candidate_indices:
+        try:
+            traj_idx, _ = dataset._samples[idx]
+            feature_pairs.append((idx, traj_idx, _gallery_feature(dataset, idx, rollout_steps)))
+        except Exception:
+            continue
+    if len(feature_pairs) <= count:
+        return [idx for idx, _, _ in feature_pairs]
+
+    features = torch.stack([feature for _, _, feature in feature_pairs])
+    trajs = [traj_idx for _, traj_idx, _ in feature_pairs]
+    enough_unique_trajs = len(set(trajs)) >= count
+    mean_feature = features.mean(dim=0, keepdim=True)
+    distances_from_mean = (features - mean_feature).abs().mean(dim=1)
+    selected_positions = [int(distances_from_mean.argmax())]
+
+    while len(selected_positions) < count:
+        selected_features = features[selected_positions]
+        pairwise = (features[:, None, :] - selected_features[None, :, :]).abs().mean(dim=2)
+        min_distance = pairwise.min(dim=1).values
+        min_distance[selected_positions] = -1.0
+        if enough_unique_trajs:
+            selected_trajs = {trajs[pos] for pos in selected_positions}
+            for pos, traj_idx in enumerate(trajs):
+                if traj_idx in selected_trajs:
+                    min_distance[pos] = -1.0
+        selected_positions.append(int(min_distance.argmax()))
+
+    return [feature_pairs[pos][0] for pos in selected_positions]
+
+
 def plot_pretrained_backbone_rollout_gallery(
     path: Path,
     rows_by_sample: list[tuple[int, list[tuple[str, list[torch.Tensor]]]]],
@@ -869,22 +926,36 @@ def evaluate_models(specs: list[ModelSpec], dataset: PDEArenaIncompSplitDataset,
 
     if {"Pretrained VICON", "VICON transformer video"}.issubset(loaded_model_names):
         gallery = []
-        for gallery_idx in range(min(3, len(dataset))):
-            qn_traj_idx_i, start_time_i = dataset._samples[gallery_idx]
-            max_steps_i = (dataset._time_steps - 1 - start_time_i) // dataset.target_time_offset
+        gallery_dataset = dataset
+        gallery_split = args.split
+        unique_trajs = {traj_idx for traj_idx, _ in gallery_dataset._samples}
+        if len(unique_trajs) < 3:
+            gallery_split = "train"
+            gallery_dataset = PDEArenaIncompSplitDataset(
+                file_paths=str(repo_root / "data" / "pdearena_incomp" / "ns_incom_inhom_2d_512-*.h5"),
+                ex_num=5,
+                split=gallery_split,
+            )
+        gallery_indices = select_diverse_gallery_indices(gallery_dataset, count=3, rollout_steps=args.rollout_steps)
+        gallery_meta = [gallery_dataset._samples[idx] for idx in gallery_indices]
+        print(f"[paper] pretrained rollout gallery split={gallery_split} samples: {list(zip(gallery_indices, gallery_meta))}")
+
+        for gallery_idx in gallery_indices:
+            qn_traj_idx_i, start_time_i = gallery_dataset._samples[gallery_idx]
+            max_steps_i = (gallery_dataset._time_steps - 1 - start_time_i) // gallery_dataset.target_time_offset
             steps_i = max(1, min(args.rollout_steps, max_steps_i))
-            ref_i = dataset._split_refs[qn_traj_idx_i]
-            context_indices_i = dataset._sample_context_indices(qn_traj_idx_i, gallery_idx)
+            ref_i = gallery_dataset._split_refs[qn_traj_idx_i]
+            context_indices_i = gallery_dataset._sample_context_indices(qn_traj_idx_i, gallery_idx)
 
             def read_sample_frame(step: int) -> torch.Tensor:
-                time_idx = start_time_i + step * dataset.target_time_offset
-                return dataset._read_velocity_frame(ref_i, time_idx).unsqueeze(0).unsqueeze(0)
+                time_idx = start_time_i + step * gallery_dataset.target_time_offset
+                return gallery_dataset._read_velocity_frame(ref_i, time_idx).unsqueeze(0).unsqueeze(0)
 
             def read_sample_context(step: int) -> dict[str, torch.Tensor]:
-                time_idx = start_time_i + step * dataset.target_time_offset
-                target_time_idx = time_idx + dataset.target_time_offset
-                ex_f = torch.stack([dataset._read_velocity_frame(dataset._split_refs[idx], time_idx) for idx in context_indices_i]).unsqueeze(0).to(device)
-                ex_g = torch.stack([dataset._read_velocity_frame(dataset._split_refs[idx], target_time_idx) for idx in context_indices_i]).unsqueeze(0).to(device)
+                time_idx = start_time_i + step * gallery_dataset.target_time_offset
+                target_time_idx = time_idx + gallery_dataset.target_time_offset
+                ex_f = torch.stack([gallery_dataset._read_velocity_frame(gallery_dataset._split_refs[idx], time_idx) for idx in context_indices_i]).unsqueeze(0).to(device)
+                ex_g = torch.stack([gallery_dataset._read_velocity_frame(gallery_dataset._split_refs[idx], target_time_idx) for idx in context_indices_i]).unsqueeze(0).to(device)
                 return {"ex_f": ex_f, "ex_g": ex_g}
 
             rows = [("Ground truth", [to_frame(read_sample_frame(step)) for step in range(1, steps_i + 1)])]

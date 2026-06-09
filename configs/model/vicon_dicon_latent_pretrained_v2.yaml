@@ -1,0 +1,35 @@
+_target_: src.models.vicon.vicon_latent_dicon_v2.PretrainedViconLatentDICONV2
+
+backbone:
+  _target_: src.models.vicon.vicon.Vicon
+
+  patch_resolution: 16
+  patch_num_in: 8
+  patch_num_out: 8
+  ex_num: 9
+  short_num_min: 1
+  dim_channel: 7
+  dim_token: 1024
+
+  transformer:
+    _target_: src.models.base.transformer.TransformerEncoder
+    layer:
+      _target_: src.models.base.transformer.TransformerEncoderLayer
+      d_model: 1024
+      nhead: 8
+      dim_feedforward: 2048
+      dropout: 0.0
+    num_layers: 10
+
+flow_expert:
+  _target_: src.models.vicon.vicon_latent_dicon_v2.ResidualLatentFlowMatchingExpert
+  target_channels: 2
+  cond_channels: ${model.backbone.dim_token}
+  base_channels: 64
+  time_channels: 256
+
+backbone_ckpt_path: ${paths.data_dir}/pretrained/vicon.pth
+freeze_backbone: true
+backbone_strict: true
+loss_time_weight: 1.5
+loss_time_power: 2.0

@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import math
+from pathlib import Path
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+from .vicon_latent_dicon import PretrainedViconLatentDICON, _extract_state_dict, _strip_prefix
 
 
 def _group_norm_channels(num_channels: int) -> int:
@@ -245,3 +248,104 @@ class ViconLatentDICONV2(nn.Module):
             sample_list.append(x + baseline)
 
         return torch.stack(sample_list, dim=0).mean(dim=0)
+
+class PretrainedViconLatentDICONV2(ViconLatentDICONV2):
+    """Residual latent flow head conditioned on hidden states from released VICON."""
+
+    velocity_channel_indices = PretrainedViconLatentDICON.velocity_channel_indices
+
+    def __init__(
+        self,
+        backbone: nn.Module,
+        flow_expert: nn.Module,
+        backbone_ckpt_path: str | Path,
+        freeze_backbone: bool,
+        backbone_strict: bool,
+        loss_time_weight: float,
+        loss_time_power: float,
+    ) -> None:
+        super().__init__(
+            backbone=backbone,
+            flow_expert=flow_expert,
+            loss_time_weight=loss_time_weight,
+            loss_time_power=loss_time_power,
+        )
+        self._load_backbone_checkpoint(Path(backbone_ckpt_path), strict=backbone_strict)
+        if freeze_backbone:
+            self.backbone.requires_grad_(False)
+
+    def _load_backbone_checkpoint(self, checkpoint_path: Path, strict: bool) -> None:
+        checkpoint = torch.load(checkpoint_path, map_location="cpu")
+        state_dict = _extract_state_dict(checkpoint)
+        load_attempts = [
+            state_dict,
+            _strip_prefix(state_dict, "net."),
+            _strip_prefix(state_dict, "backbone."),
+            _strip_prefix(state_dict, "model."),
+            _strip_prefix(state_dict, "module."),
+        ]
+
+        load_error: RuntimeError | None = None
+        for candidate in load_attempts:
+            try:
+                self.backbone.load_state_dict(candidate, strict=strict)
+                load_error = None
+                break
+            except RuntimeError as err:
+                load_error = err
+
+        if load_error is not None:
+            raise RuntimeError(f"Failed to load VICON backbone checkpoint from {checkpoint_path}") from load_error
+
+    def _backbone_image_size(self) -> tuple[int, int]:
+        size = self.backbone.patch_resolution * self.backbone.patch_num_in
+        return size, size
+
+    def _resize_for_backbone(self, tensor: torch.Tensor) -> torch.Tensor:
+        target_size = self._backbone_image_size()
+        if tensor.shape[-2:] == target_size:
+            return tensor
+        batch_size, pair_count = tensor.shape[:2]
+        tensor = tensor.flatten(0, 1)
+        tensor = F.interpolate(tensor, size=target_size, mode="bilinear", align_corners=False)
+        return tensor.unflatten(0, (batch_size, pair_count))
+
+    @staticmethod
+    def _resize_outputs(outputs: dict[str, torch.Tensor], target_size: tuple[int, int]) -> dict[str, torch.Tensor]:
+        return PretrainedViconLatentDICON._resize_outputs(outputs, target_size=target_size)
+
+    @staticmethod
+    def _prompt_normalization(x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        return PretrainedViconLatentDICON._prompt_normalization(x)
+
+    @classmethod
+    def _select_velocity_channels(cls, outputs: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+        return {key: tensor[:, :, cls.velocity_channel_indices, :, :] for key, tensor in outputs.items()}
+
+    def _build_prompt(
+        self, data: dict[str, torch.Tensor]
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        g = PretrainedViconLatentDICON.lift_to_pretrained_channels(self._resize_for_backbone(data["ex_g"]))
+        qn_f = PretrainedViconLatentDICON.lift_to_pretrained_channels(self._resize_for_backbone(data["qn_f"]))
+        ex_f = PretrainedViconLatentDICON.lift_to_pretrained_channels(self._resize_for_backbone(data["ex_f"]))
+        dummy_label = torch.zeros_like(qn_f)
+        f = torch.cat((ex_f, qn_f), dim=1)
+        f_norm, _, _ = self._prompt_normalization(f)
+        g_norm, g_mean, g_std = self._prompt_normalization(g)
+        g_norm = torch.cat((g_norm, dummy_label), dim=1)
+        return f_norm, g_norm, g_mean, g_std
+
+    def predict_backbone(
+        self, data: dict[str, torch.Tensor], mode: str, need_weights: bool
+    ) -> dict[str, torch.Tensor] | tuple[dict[str, torch.Tensor], None]:
+        f_norm, g_norm, g_mean, g_std = self._build_prompt(data)
+        outputs = self._run_backbone({"ex_f": f_norm, "ex_g": g_norm}, mode=mode, need_weights=need_weights)
+        if isinstance(outputs, tuple):
+            outputs = outputs[0]
+        denormalized_outputs = {key: tensor * g_std + g_mean for key, tensor in outputs.items()}
+        denormalized_outputs = self._select_velocity_channels(denormalized_outputs)
+        denormalized_outputs = self._resize_outputs(denormalized_outputs, target_size=data["qn_f"].shape[-2:])
+        if need_weights:
+            return denormalized_outputs, None
+        return denormalized_outputs
+
