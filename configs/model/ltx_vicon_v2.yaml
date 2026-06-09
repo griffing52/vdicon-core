@@ -1,0 +1,41 @@
+_target_: src.models.vicon.ltx_vicon_v2.LTXViconVideoModelV2
+
+pretrained_model_name_or_path: Lightricks/LTX-Video
+subfolder: transformer
+use_pretrained: true
+torch_dtype: bfloat16
+
+# Used only when use_pretrained=false for quick local dry runs.
+transformer_kwargs:
+  in_channels: ${model.token_channels}
+  out_channels: ${model.token_channels}
+  patch_size: 1
+  patch_size_t: 1
+  num_attention_heads: 8
+  attention_head_dim: 64
+  cross_attention_dim: 512
+  num_layers: 4
+  caption_channels: 1024
+
+input_channels: 2
+output_channels: 2
+token_channels: 128
+
+# V1 used one repeated learned token and 32x32 patch decoding. V2 uses qn_f
+# patch tokens and a spatial residual decoder. patch_size=16 gives a 32x32
+# token grid for 512x512 fields.
+patch_size: 16
+context_tokens: 256
+timestep: 500
+train_timestep_min: 250
+train_timestep_max: 750
+random_train_timestep: true
+
+freeze_transformer: true
+train_last_n_layers: 4
+gradient_checkpointing: true
+
+decoder_hidden_channels: 128
+decoder_num_blocks: 3
+residual_scale: 1.0
+output_revision: target_stats_residual
