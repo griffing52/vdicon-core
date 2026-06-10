@@ -5,6 +5,7 @@ import csv
 import gc
 import importlib
 import math
+import os
 import re
 import sys
 from dataclasses import dataclass
@@ -20,6 +21,7 @@ import torch
 from omegaconf import OmegaConf
 
 repo_root = Path(__file__).resolve().parents[1]
+os.environ.setdefault("PROJECT_ROOT", str(repo_root))
 if str(repo_root) not in sys.path:
     sys.path.insert(0, str(repo_root))
 
@@ -40,6 +42,7 @@ CURATED_BASELINES = [
     ("DICON", "logs/train/runs/DICON_100000_INCOMP/checkpoints/step_100000.ckpt", "lightning"),
     ("Latent VDICON", "logs/train/runs/LATENT_DICON_100000_INCOMP/checkpoints/step_100000.ckpt", "lightning"),
     ("VDICON v2", "logs/train/runs/VDICON_V2_100000_INCOMP/checkpoints/step_100000.ckpt", "lightning"),
+    ("Pretrained VICON flow v2", "logs/train/runs/2026-06-09_07-21-52-572951/checkpoints/step_100000.ckpt", "lightning"),
     ("VICON transformer video", "logs/train/runs/VICON_TRANSFORMER_VIDEO/checkpoints/step_100000.ckpt", "checkpoint"),
     ("LTX-VICON", "logs/train/runs/LTX_VICON_V2/checkpoints/step_100000.ckpt", "checkpoint"),
 ]
@@ -254,7 +257,7 @@ def plot_pretrained_backbone_rollout_gallery(
 ) -> None:
     if not rows_by_sample:
         return
-    model_names = ["Ground truth", "Pretrained VICON", "VICON transformer video"]
+    model_names = ["Ground truth", "Pretrained VICON", "Pretrained VICON flow v2", "VICON transformer video"]
     steps = min(len(row[1]) for _, rows in rows_by_sample for row in rows)
     if steps <= 0:
         return
@@ -892,7 +895,7 @@ def evaluate_models(specs: list[ModelSpec], dataset: PDEArenaIncompSplitDataset,
             rollout_rows.append((spec.name, model_rollout))
         write_csv(output_dir / f"rollout_metrics_{slug(spec.name)}.csv", rollout_metric_rows)
 
-        if spec.name in {"Pretrained VICON", "VICON transformer video"} and model is not None:
+        if spec.name in {"Pretrained VICON", "Pretrained VICON flow v2", "VICON transformer video"} and model is not None:
             pretrained_gallery_models[spec.name] = model
             loaded_model_names.add(spec.name)
         elif model is not None:
@@ -924,7 +927,7 @@ def evaluate_models(specs: list[ModelSpec], dataset: PDEArenaIncompSplitDataset,
     plot_sample_boxplot(output_dir / "sample_mae_boxplot.png", visual_sample_rows, metric="mae")
     plot_rollout_metric_curves(output_dir / "rollout_mae_curves.png", visual_rollout_metric_rows, metric="mae")
 
-    if {"Pretrained VICON", "VICON transformer video"}.issubset(loaded_model_names):
+    if {"Pretrained VICON", "Pretrained VICON flow v2", "VICON transformer video"}.issubset(loaded_model_names):
         gallery = []
         gallery_dataset = dataset
         gallery_split = args.split
@@ -959,7 +962,7 @@ def evaluate_models(specs: list[ModelSpec], dataset: PDEArenaIncompSplitDataset,
                 return {"ex_f": ex_f, "ex_g": ex_g}
 
             rows = [("Ground truth", [to_frame(read_sample_frame(step)) for step in range(1, steps_i + 1)])]
-            for name in ("Pretrained VICON", "VICON transformer video"):
+            for name in ("Pretrained VICON", "Pretrained VICON flow v2", "VICON transformer video"):
                 model = pretrained_gallery_models[name]
                 current = read_sample_frame(0).to(device)
                 states = []
